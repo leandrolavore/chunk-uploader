@@ -1,21 +1,23 @@
-use rust_upload::upload_chunks;
+use rust_upload::compress_and_upload_in_chunks;
 use std::time::Instant;
 
 fn main() {
-    // Measure start time
-    let start_time = Instant::now();
+  let start_time = Instant::now();
+  let path_to_compress = "src/test";
+  let file_name = "test.zip";
+  let server_url = "http://localhost:3000/upload";
 
-    // Your file or directory path and output ZIP file
-    let path_to_compress = "src/test"; // Can be a file or directory
-    let zip_file_path = "compressed.zip";
+  // Run the compression
+  match compress_and_upload_in_chunks(
+    path_to_compress,
+    file_name,
+    server_url,
+  ) {
+    Ok(_) => println!("Compressed file uploaded successfully!"),
+    Err(e) => eprintln!("Compression failed: {:?}", e),
+  }
 
-    // Run the compression
-    match upload_chunks(path_to_compress, zip_file_path) {
-        Ok(_) => println!("Compression completed successfully!"),
-        Err(e) => eprintln!("Compression failed: {:?}", e),
-    }
-
-    // Measure end time and calculate the duration
-    let duration = start_time.elapsed();
-    println!("Script ran for: {:.2?}", duration);
+  // Measure end time and calculate the duration
+  let duration = start_time.elapsed();
+  println!("Script ran for: {:.2?}", duration);
 }
