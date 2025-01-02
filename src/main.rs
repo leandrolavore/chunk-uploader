@@ -7,8 +7,8 @@ async fn main() {
 
   let path_to_compress = "src/test";
   let file_name = "test.zip";
-  let server_url = "http://localhost:3000/upload";
-  let chunk_size = 1024 * 1024 * 1024; // 1 GB chunks
+  let server_url = "http://localhost:8080/upload";
+  let chunk_size = 1024 * 1024 * 1024;
 
   // Run the compression and upload process
   match compress_and_upload_streaming(
@@ -16,7 +16,9 @@ async fn main() {
     file_name,
     server_url,
     chunk_size,
-  ) {
+  )
+  .await
+  {
     Ok(_) => println!("Compressed file uploaded successfully!"),
     Err(e) => eprintln!("Compression failed: {:?}", e),
   }

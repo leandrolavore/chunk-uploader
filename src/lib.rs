@@ -1,4 +1,4 @@
-use reqwest::blocking::Client;
+use reqwest::Client;
 use std::fs::File;
 use std::io::{self, BufReader, Cursor, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -44,13 +44,12 @@ impl<'a> StreamingUploader<'a> {
         .as_millis() as u64
     }
 
-    // Set total size in headers for the last chunk
+    // Calculate Content-Range header
     let total_size_header = if is_last_chunk {
       self.total_bytes_uploaded + data.len() as u64
     } else {
       0
     };
-
     let end_byte = self.total_bytes_uploaded + data.len() as u64 - 1;
     let content_range = if is_last_chunk {
       format!(
@@ -64,49 +63,41 @@ impl<'a> StreamingUploader<'a> {
       )
     };
 
-    // Spawn the upload task
+    // Clone data required for the task
     let client = self.client.clone();
     let server_url = self.server_url.to_string();
     let zip_file_name = self.zip_file_name.to_string();
     let chunk_data = data.to_vec();
+    let current_uploaded = self.total_bytes_uploaded;
 
-    println!(
-      "[{} ms] 🚀 Uploading Chunk: start_byte={}, end_byte={}, Content-Length={}",
-      current_timestamp(),
-      self.total_bytes_uploaded,
-      end_byte,
-      data.len()
-    );
-
+    // Spawn the upload task
     let task = task::spawn(async move {
       // Perform the upload asynchronously
-      let response = client
+      match client
         .post(&server_url)
         .header("x-filename", zip_file_name)
         .header("Content-Range", content_range)
         .header("Content-Length", chunk_data.len().to_string())
         .body(chunk_data)
-        .send();
-
-      match response {
+        .send()
+        .await
+      {
         Ok(resp) => {
-          if !resp.status().is_success() {
-            // Log response status and body for debugging
+          if resp.status().is_success() {
+            println!("✅ Chunk uploaded successfully!");
+          } else {
             let status = resp.status();
-            let response_body = resp.text().unwrap_or_else(|_| {
-              "Failed to read response body".to_string()
-            });
+            let response_body =
+              resp.text().await.unwrap_or_else(|_| {
+                "Failed to read response body".to_string()
+              });
             println!(
               "❌ Upload failed: {}. Response body: {}",
               status, response_body
             );
-          } else {
-            println!("✅ Chunk uploaded successfully!");
           }
         }
-        Err(e) => {
-          println!("❌ Network error: {}", e);
-        }
+        Err(e) => println!("❌ Network error: {}", e),
       }
     });
 
@@ -120,7 +111,6 @@ impl<'a> StreamingUploader<'a> {
 
   pub async fn wait_for_all_uploads(&self) {
     let tasks = {
-      // Take the tasks vector, leaving an empty one in its place
       let mut locked_tasks = self.tasks.lock().unwrap();
       std::mem::take(&mut *locked_tasks)
     };
@@ -190,8 +180,7 @@ impl<'a> Seek for ChunkedStreamingUploader<'a> {
   }
 }
 
-// Main function for compressing and uploading a directory
-pub fn compress_and_upload_streaming(
+pub async fn compress_and_upload_streaming(
   path_to_compress: &str,
   zip_file_name: &str,
   server_url: &str,
@@ -222,15 +211,14 @@ pub fn compress_and_upload_streaming(
     ));
   }
 
-  // Finalize the ZIP archive
-  zip.finish()?;
+  zip.finish()?; // Finalize the ZIP archive
   writer.flush()?; // Ensure all remaining data is uploaded
-  println!("Streaming and compression completed.");
+
+  writer.uploader.wait_for_all_uploads().await;
 
   Ok(())
 }
 
-// Recursively add a directory to the ZIP archive
 fn add_directory_to_zip<W: Write + Seek>(
   zip: &mut ZipWriter<W>,
   dir_path: &Path,
