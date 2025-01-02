@@ -14,5 +14,5 @@ futures = "0.3"
 path = "src/lib.rs"
 
 [[bin]]
-name = "upload_script"
+name = "uploader"
 path = "src/main.rs"
