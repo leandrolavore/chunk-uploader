@@ -37,12 +37,6 @@ impl<'a> StreamingUploader<'a> {
     data: &[u8],
     is_last_chunk: bool,
   ) -> io::Result<()> {
-    fn current_timestamp() -> u64 {
-      SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64
-    }
 
     // Calculate Content-Range header
     let total_size_header = if is_last_chunk {
@@ -68,8 +62,7 @@ impl<'a> StreamingUploader<'a> {
     let server_url = self.server_url.to_string();
     let zip_file_name = self.zip_file_name.to_string();
     let chunk_data = data.to_vec();
-    let current_uploaded = self.total_bytes_uploaded;
-
+    
     // Spawn the upload task
     let task = task::spawn(async move {
       // Perform the upload asynchronously

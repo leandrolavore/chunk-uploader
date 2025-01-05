@@ -23,7 +23,7 @@ let start_time = Instant::now();
   // Run the compression and upload process
   match compress_and_upload_streaming(
     path_to_compress,
-    file_name,
+    zip_file_name,
     server_url,
     chunk_size,
   )
